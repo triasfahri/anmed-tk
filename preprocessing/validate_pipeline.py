@@ -11,11 +11,13 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 
 import preprocess_twitter as pipeline
+import merge_raw
 
 
 ROOT = Path(__file__).resolve().parent
@@ -30,8 +32,40 @@ def check(condition: bool, message: str) -> None:
 def main() -> None:
     results: dict[str, dict] = {}
 
-    py_compile.compile(str(ROOT / "preprocess_twitter.py"), doraise=True)
+    for filename in ["preprocess_twitter.py", "validate_pipeline.py", "merge_raw.py"]:
+        py_compile.compile(str(ROOT / filename), doraise=True)
     results["python_syntax"] = {"status": "passed"}
+
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        old, new, out = [folder / name for name in ["old.jsonl", "new.jsonl", "raw_data_MBG.jsonl"]]
+        old.write_text(json.dumps({"id": "1", "text": "baris\u2028tetap satu 👍"}, ensure_ascii=False) + "\n", encoding="utf-8")
+        new.write_text(json.dumps({"id": "2", "pull_batch": "slot_sample"}) + "\n", encoding="utf-8")
+        out.write_bytes(old.read_bytes())
+        backup = folder / "raw_data_MBG_batch1_month_wide.jsonl"
+        merge_raw.merge_raw(old, new, out)
+        merged = out.read_bytes()
+        check(backup.read_bytes() == old.read_bytes(), "Arsip batch 1 berubah")
+        check([row["pull_batch"] for row in merge_raw.read_jsonl(out)] == ["month_wide", "slot_sample"], "Urutan/metadata merge salah atau U+2028 memecah record")
+        merge_raw.merge_raw(old, new, out)
+        check(out.read_bytes() == merged and backup.read_bytes() == old.read_bytes(), "Merge ulang tidak identik atau menimpa arsip")
+        for duplicate_rows in [[{"id": "1"}], [{"id": "2"}, {"id": "2"}]]:
+            new.write_text("".join(json.dumps(row) + "\n" for row in duplicate_rows), encoding="utf-8")
+            try:
+                merge_raw.merge_raw(old, new, out)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("ID ganda harus menghentikan merge")
+            check(out.read_bytes() == merged and backup.read_bytes() == old.read_bytes(), "Merge ID ganda mengubah file")
+        untouched = folder / "untouched"
+        untouched.mkdir()
+        try:
+            merge_raw.merge_raw(old, new, untouched / "raw_data_MBG.jsonl")
+        except ValueError:
+            pass
+        check(not list(untouched.iterdir()), "Merge ID ganda menulis file baru")
+    results["raw_merge_cases"] = {"status": "passed"}
 
     filenames = ["posts_rq2_rq3.csv", "topic_documents_rq1.csv", "manual_quality_audit.csv", "preprocessing_report.json", "topic_stopwords.txt", "posts_preprocessed.jsonl"]
     with tempfile.TemporaryDirectory() as directory:
@@ -118,6 +152,7 @@ def main() -> None:
     check(prepared["source_keyword"].isna().all() and "bio" not in prepared, "Query opsional/privasi gagal")
     check(prepared["source_month"].isna().all() and str(prepared["source_month"].dtype) == "string", "source_month tanpa query harus string missing")
     check(prepared["window_capped"].isna().all(), "Window tanpa query harus unknown")
+    check(prepared["pull_batch"].eq("month_wide").all(), "Input tanpa pull_batch harus month_wide")
     check(prepared["is_invalid_date"].iloc[-1], "Tanggal NaT tidak berada paling akhir")
     results["deduplication_cases"] = {"status": "passed"}
 
@@ -160,6 +195,33 @@ def main() -> None:
         missing, _ = pipeline.prepare_data(window_fixture, Path(directory) / "missing.csv")
         check(str(missing["window_capped"].dtype) == "boolean" and missing["window_capped"].isna().all(), "Log hilang harus menghasilkan boolean all-NA")
     results["collection_window_cases"] = {"status": "passed"}
+
+    batch_fixture = pd.DataFrame([
+        {
+            "id": "slot", "text": "teks slot", "created_at": "2025-01-02T00:00:00Z",
+            "query": 'bgn -mbg -"makan bergizi gratis" -sppg since_time:1735776000 until_time:1735797600',
+            "source_keyword": "bgn", "source_month": "2025-01", "pull_batch": "slot_sample",
+            "slot_since": "2025-01-02T00:00:00+00:00", "slot_until": "2025-01-02T06:00:00+00:00",
+        },
+        {
+            "id": "month", "text": "teks bulanan", "created_at": "2025-01-01T00:00:00Z",
+            "query": '"makan bergizi gratis" since:2025-01-01_00:00:00_UTC until:2025-02-01_00:00:00_UTC',
+        },
+        {
+            "id": "invalid", "text": "", "created_at": "2025-01-01T00:00:00Z",
+            "pull_batch": "slot_sample",
+        },
+    ])
+    prepared, _ = pipeline.prepare_data(batch_fixture)
+    by_id = prepared.set_index("id")
+    check(by_id.loc["slot", "source_keyword"] == "bgn" and by_id.loc["slot", "source_month"] == "2025-01", "Metadata slot_sample tertimpa parsing query")
+    check(by_id.loc["month", "source_keyword"] == "makan bergizi gratis" and by_id.loc["month", "source_month"] == "2025-01", "Metadata month_wide tidak diparse saat missing")
+    check(by_id.loc["month", "pull_batch"] == "month_wide" and by_id.loc["slot", "pull_batch"] == "slot_sample", "Fallback pull_batch salah")
+    check(by_id.loc["slot", ["slot_since", "slot_until"]].tolist() == [batch_fixture.iloc[0][column] for column in ["slot_since", "slot_until"]], "Batas slot berubah")
+    check(by_id.loc["month", ["slot_since", "slot_until"]].isna().all(), "month_wide memiliki batas slot")
+    _, _, stages = pipeline.build_outputs(prepared)
+    check([stages[f"pull_batch_{batch}_rows"] for batch in ["month_wide", "slot_sample"]] == [1, 1], "Hitungan batch memasukkan posting tidak valid")
+    results["batch_metadata_cases"] = {"status": "passed"}
 
     for name, frame, columns in [
         ("posts", posts, ["text_minimal"]),
@@ -218,6 +280,7 @@ def main() -> None:
     for name, frame in {"posts": posts, "topic": topic}.items():
         check(pd.api.types.is_bool_dtype(frame["uses_embege"]) and frame["uses_embege"].notna().all(), f"{name}.uses_embege bukan boolean")
         check(frame["source_keyword"].notna().all(), f"{name}.source_keyword memiliki missing value")
+        check(not frame["source_keyword"].str.contains(r" since|since_time", case=False, na=False).any(), f"{name}.source_keyword berisi query slot")
         check(frame["source_month"].str.fullmatch(r"\d{4}-\d{2}", na=False).all(), f"{name}.source_month tidak sesuai YYYY-MM")
         check(str(frame["window_capped"].dtype) == "boolean", f"{name}.window_capped bukan nullable boolean")
     check(topic[["source_month", "window_capped"]].reset_index(drop=True).equals(posts.set_index("id").loc[topic["id"], ["source_month", "window_capped"]].reset_index(drop=True)), "Metadata window dokumen topik berbeda dari posting sumber")
@@ -242,6 +305,25 @@ def main() -> None:
     check(all(re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00", r["created_at"]) for r in records), "Format created_at JSONL bukan ISO 8601 UTC")
     check(all(r["window_capped"] in (True, False, None) and isinstance(r["uses_embege"], bool) for r in records), "Tipe boolean JSONL salah")
     results["jsonl_output"] = {"status": "passed", "rows": len(records)}
+
+    check(all("pull_batch" in row for row in records), "Record JSONL kehilangan pull_batch")
+    raw_batches = raw["pull_batch"].fillna("month_wide") if "pull_batch" in raw else pd.Series("month_wide", index=raw.index)
+    batch_counts = Counter(raw_batches)
+    for name, frame in {"posts": posts, "topic": topic, "jsonl": pd.DataFrame(records)}.items():
+        check(frame["pull_batch"].isin(["month_wide", "slot_sample"]).all(), f"{name}.pull_batch tidak valid")
+        if name != "topic":
+            check(Counter(frame["pull_batch"]) == batch_counts, f"Hitungan batch {name} berbeda dari raw")
+        slot = frame["pull_batch"].eq("slot_sample")
+        check(frame.loc[slot, ["slot_since", "slot_until"]].notna().all().all(), f"{name}.slot_sample kehilangan batas slot")
+        check(frame.loc[~slot, ["slot_since", "slot_until"]].isna().all().all(), f"{name}.month_wide memiliki batas slot")
+        check(not frame["source_keyword"].str.contains(r" since|since_time", case=False, na=False).any(), f"{name}.source_keyword berisi query slot")
+        check(frame.set_index("id")["pull_batch"].eq(raw_batches.set_axis(raw["id"]).reindex(frame["id"])).all(), f"{name}.pull_batch berbeda dari raw per ID")
+    for batch in ["month_wide", "slot_sample"]:
+        check(retention[f"pull_batch_{batch}_rows"] == batch_counts[batch], f"Retention {batch} berbeda dari raw")
+    for column in ["pull_batch", "slot_since", "slot_until"]:
+        check([row[column] for row in records] == posts[column].astype(object).where(posts[column].notna(), None).tolist(), f"JSONL.{column} berbeda dari CSV")
+        check(topic[column].reset_index(drop=True).equals(posts.set_index("id").loc[topic["id"], column].reset_index(drop=True)), f"Metadata batch RQ1.{column} berbeda dari posting sumber")
+    results["batch_provenance"] = {"status": "passed", "raw_counts": dict(batch_counts)}
 
     report = {
         "summary": {

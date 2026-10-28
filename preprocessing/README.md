@@ -2,7 +2,9 @@
 
 Pendekatan, keputusan desain, dan alasannya dijelaskan di [`PREPROCESSING_APPROACH.md`](PREPROCESSING_APPROACH.md). File ini berisi petunjuk operasional.
 
-Pipeline ini memproses `raw_data_MBG.jsonl` (28.081 posting berbahasa Indonesia dalam JSON Lines) dengan Python dan Pandas. Desainnya memisahkan kebutuhan RQ1/topic modeling dari RQ2/engagement dan RQ3/temporal agar deduplikasi tidak mengubah intensitas percakapan atau statistik engagement.
+Pipeline ini memproses `raw_data_MBG.jsonl` (35.714 posting berbahasa Indonesia dalam JSON Lines) dengan Python dan Pandas. Desainnya memisahkan kebutuhan RQ1/topic modeling dari RQ2/engagement dan RQ3/temporal agar deduplikasi tidak mengubah intensitas percakapan atau statistik engagement.
+
+Input merupakan gabungan dua batch: 28.081 posting dari query bulanan (`final_posts.jsonl`, `pull_batch=month_wide`) dan 7.633 posting dari query slot enam jam yang dirotasi (`extra_posts.jsonl`, `pull_batch=slot_sample`). Batch pertama condong ke posting populer; batch kedua menambahkan sampel dari slot waktu di dalam sel keyword-bulan yang capped.
 
 ## Output utama
 
@@ -18,7 +20,7 @@ output/
 
 `collection_log.csv` di samping script mencatat jendela koleksi per keyword dan bulan UTC (`keyword,month,fetched,capped`), dengan batas 300 posting per jendela. Kolom `capped` berisi teks `True` atau `False`.
 
-Validator menghasilkan `output/validation_report.json` berisi hasil 19 pemeriksaan otomatis. Output lama yang digantikan disimpan di `output/_superseded/`. Data mentah tidak pernah ditimpa. `.gitignore` mengecualikan `output/`, `__pycache__/`, `.DS_Store`, dan `.venv/` dari Git.
+Validator menghasilkan `output/validation_report.json` berisi hasil 22 pemeriksaan otomatis. Output lama yang digantikan disimpan di `output/_superseded/`. Sebelum merge pertama, input lama dipindahkan ke `raw_data_MBG_batch1_month_wide.jsonl`, salinan batch 1 yang tetap utuh; arsip yang sudah ada tidak ditimpa. `.gitignore` mengecualikan `output/`, `__pycache__/`, `.DS_Store`, `.venv/`, dan `raw_data_MBG*.jsonl` dari Git.
 
 ## Instalasi dan menjalankan pipeline
 
@@ -27,8 +29,20 @@ cd path/to/anmed
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+python merge_raw.py
 python preprocess_twitter.py
 python validate_pipeline.py
+```
+
+`merge_raw.py` mencari `final_posts.jsonl` dan `extra_posts.jsonl` di `../data/` atau `../tugas-kelompok/data/`, relatif terhadap script. Gunakan `--old PATH`, `--new PATH`, dan `--out PATH` jika lokasi berbeda; output default adalah `raw_data_MBG.jsonl` di samping script. Merge selalu membaca kedua sumber, mempertahankan urutan batch 1 lalu batch 2, dan berhenti sebelum menulis atau memindahkan file jika ada ID ganda. Menjalankannya ulang menghasilkan output identik dan tidak mengubah arsip batch 1.
+
+Untuk rerun dengan lingkungan yang dipakai pada validasi terakhir (pandas 2.2.3, emoji 2.15.0):
+
+```bash
+PYTHON=/private/tmp/claude-501/-Users-triasfahri-Documents-Sem7-Anmedsos/36d5c523-d519-417c-8a64-42b538eb42cc/scratchpad/pinned_env/bin/python
+"$PYTHON" merge_raw.py
+"$PYTHON" preprocess_twitter.py
+"$PYTHON" validate_pipeline.py
 ```
 
 Paket `emoji==2.15.0` adalah dependency wajib. Script berhenti dengan `ModuleNotFoundError` jika dependency belum dipasang; tidak ada fallback, sehingga emoji gabungan dan skin tone diproses konsisten antarlingkungan.
@@ -74,15 +88,16 @@ Script menandai:
 - `is_duplicate_text`;
 - `duplicate_text_group` sebagai hash stabil untuk teks minimal tanpa URL, dengan whitespace dirapikan dan huruf kecil; jika hasilnya kosong, gunakan teks minimal huruf kecil.
 
-`preprocessing_report.json` mencatat jumlah pada setiap tahap: input, missing text, tanggal invalid, duplicate ID/text, output posting individual, dan hasil deduplikasi RQ1. Hitungan informasional `window_capped_true_rows`, `window_capped_false_rows`, dan `window_capped_unknown_rows` dihitung pada posting valid RQ2/RQ3; path log dicatat sebagai `configuration.collection_log`.
+`preprocessing_report.json` mencatat jumlah pada setiap tahap: input, missing text, tanggal invalid, duplicate ID/text, output posting individual, dan hasil deduplikasi RQ1. Hitungan informasional `window_capped_true_rows`, `window_capped_false_rows`, `window_capped_unknown_rows`, `pull_batch_month_wide_rows`, dan `pull_batch_slot_sample_rows` dihitung pada posting valid RQ2/RQ3; path log dicatat sebagai `configuration.collection_log`.
 
 Hasil dataset saat ini:
 
-- input dan posting valid RQ2/RQ3: 28.081;
+- input dan posting valid RQ2/RQ3: 35.714; `posts_preprocessed.jsonl` memuat 35.714 record yang sama;
 - missing text, tanggal invalid, dan duplicate ID: 0;
-- duplicate berdasarkan teks minimal tanpa URL dan tanpa membedakan kapitalisasi: 483 baris setelah kemunculan pertama;
-- dokumen unik untuk RQ1: 27.598;
-- `window_capped=True`: 22.892 posting; `False`: 5.189; unknown: 0;
+- duplicate berdasarkan teks minimal tanpa URL dan tanpa membedakan kapitalisasi: 559 baris setelah kemunculan pertama (381 kelompok mencakup 940 posting);
+- dokumen unik untuk RQ1: 35.155;
+- `window_capped=True`: 30.525 posting; `False`: 5.189; unknown: 0;
+- `pull_batch=month_wide`: 28.081 posting; `slot_sample`: 7.633;
 - sampel audit dari `posts_rq2_rq3.csv`: 150 (`seed=42`).
 
 ### 4. Unicode, HTML, URL, mention, dan hashtag
@@ -138,12 +153,16 @@ Kolom tambahan pada posting dan dokumen topik:
 | Kolom | Isi |
 |---|---|
 | `dup_group_size` | jumlah seluruh posting valid dalam `duplicate_text_group`, dihitung sebelum deduplikasi RQ1 |
-| `source_keyword` | bagian `query` sebelum ` since:`, tanpa tanda kutip ganda pembuka/penutup; missing jika kolom `query` tidak tersedia |
-| `source_month` | string `YYYY-MM` dari tanggal setelah `since:` pada `query`; missing jika kolom atau pola tidak tersedia |
+| `source_keyword` | nilai sumber yang sudah tersedia dipertahankan; hanya nilai missing diisi dari bagian `query` sebelum ` since:`, tanpa tanda kutip ganda pembuka/penutup |
+| `source_month` | nilai sumber `YYYY-MM` yang sudah tersedia dipertahankan; hanya nilai missing diisi dari tanggal setelah `since:` pada `query` |
+| `pull_batch` | `month_wide` untuk batch 1, `slot_sample` untuk batch 2; kolom/nilai yang missing diisi `month_wide` |
+| `slot_since`, `slot_until` | batas waktu slot ISO UTC dari batch 2, diteruskan tanpa perubahan; missing untuk batch 1 |
 | `window_capped` | nullable boolean dari `collection_log.csv` menurut pasangan `source_keyword` dan `source_month`; keyword dicocokkan persis, missing jika jendela tidak tercatat |
 | `uses_embege` | boolean untuk kata utuh `embege`, tanpa membedakan kapitalisasi; huruf ASCII, angka, dan underscore dianggap bagian kata |
 
-Pada dokumen topik RQ1, `source_month` dan `window_capped` menggambarkan posting layak paling awal yang mewakili kelompok duplikat, bukan seluruh anggota kelompok. Kedua kolom tidak disertakan pada lembar audit manual.
+Query batch 2 memakai `since_time:`/`until_time:` dan pengecualian keyword; `source_keyword` dan `source_month` yang diberikan kolektor tetap dipakai. `window_capped` dicari berdasarkan sel `(source_keyword, source_month)` di log koleksi, sehingga seluruh baris `slot_sample` bernilai `True`: slot tersebut disampel di dalam sel yang capped, bukan karena query slotnya sendiri mencapai batas.
+
+Pada dokumen topik RQ1, metadata sumber, batch, slot, dan `window_capped` menggambarkan posting layak paling awal yang mewakili kelompok duplikat, bukan seluruh anggota kelompok. Metadata ini tidak disertakan pada lembar audit manual.
 
 Untuk privasi, `bio` hanya berada di input mentah dan dibuang dari seluruh output posting, dokumen topik, serta lembar audit.
 
@@ -225,7 +244,7 @@ posts_with_topics = posts.merge(topic_map, on="topic_document_id", how="left")
 
 Setiap `topic_document_id` yang terisi pada posting memetakan kelompok teks tanpa URL ke satu dokumen RQ1. Penggabungan kiri tetap mempertahankan posting tanpa dokumen topik.
 
-Untuk RQ3, gunakan proporsi topik per bulan, lalu opsional ulangi analisis dengan `window_capped == False` sebagai uji robustness. Jumlah posting pada jendela yang mencapai batas bukan ukuran volume percakapan bulanan: jendela yang capped juga berisi subset yang condong ke posting populer (median likes 35 pada jendela capped dibanding 3 pada jendela tidak capped; untuk `mbg` 663), sehingga statistik engagement dari jendela capped cenderung terlalu tinggi.
+Untuk RQ3, gunakan proporsi topik per bulan, lalu opsional ulangi analisis dengan `window_capped == False` sebagai uji robustness. Jumlah posting pada jendela yang mencapai batas bukan ukuran volume percakapan bulanan. Analisis engagement dan analisis lain yang peka terhadap popularitas harus memakai `pull_batch` untuk membandingkan hasil per batch atau mengendalikan perbedaan desain koleksi: median likes `month_wide` adalah 19 secara keseluruhan dan 663 untuk `mbg`, dibanding 5 dan 11 pada `slot_sample`. Menggabungkan keduanya tanpa memperhitungkan batch mencampur desain sampling yang berbeda. `window_capped` saja tidak membedakan kedua batch karena seluruh `slot_sample` berada di sel yang capped.
 
 ## Manual quality assessment
 
@@ -245,9 +264,9 @@ Jalankan:
 python validate_pipeline.py
 ```
 
-Validator memeriksa 19 area: syntax Python, jumlah raw sesuai retention, retention setiap tahap termasuk hitungan capped, kesegaran output, struktur 150 sampel, kasus transformasi, kasus deduplikasi, kasus pemetaan jendela dan log hilang, teks wajib yang kosong, konsistensi populasi RQ1-RQ3, kelengkapan input BERTopic, penghapusan `bio`, `judge_score`, dan `on_topic`, teks embedding, ukuran kelompok duplikat, placeholder topik, stopword, metadata sumber termasuk format bulan, dan kesesuaian flag dengan log koleksi. Pemeriksaan kesegaran menjalankan pipeline dengan interpreter yang sama ke folder sementara, lalu membandingkan SHA-256 tiga CSV, report, dan stopword; hanya path stopword sementara di report yang disamakan sebelum hashing. Jika berbeda, validator meminta pipeline dijalankan ulang.
+Validator memeriksa 22 area: syntax Python, merge identik saat diulang dan penolakan ID ganda tanpa mengubah file, jumlah raw sesuai retention, retention setiap tahap termasuk hitungan capped, kesegaran output, struktur 150 sampel, kasus transformasi, kasus deduplikasi, kasus pemetaan jendela dan log hilang, fixture metadata dua batch, teks wajib yang kosong, konsistensi populasi RQ1-RQ3, kelengkapan input BERTopic, penghapusan `bio`, `judge_score`, dan `on_topic`, teks embedding, ukuran kelompok duplikat, placeholder topik, stopword, metadata sumber termasuk format bulan, kesesuaian flag dengan log koleksi, kesetaraan JSONL dengan CSV, serta label/hitungan batch dan batas slot. Hitungan batch dibandingkan dengan raw dan report tanpa angka populasi tetap. Pemeriksaan kesegaran menjalankan pipeline dengan interpreter yang sama ke folder sementara, lalu membandingkan SHA-256 tiga CSV, JSONL, report, dan stopword; hanya path stopword sementara di report yang disamakan sebelum hashing. Jika berbeda, validator meminta pipeline dijalankan ulang.
 
-Hasil terakhir: **19 pemeriksaan otomatis lulus, 0 gagal**. Mekanisme audit 150 baris (`manual_quality_audit.csv`) disediakan, tetapi review semantik sengaja dilewati sesuai keputusan tim, sehingga `review_status` tetap `belum_dinilai`; validator melaporkan `0/150` karena alasan tersebut. Evaluasi topik (coherence, diversity, interpretabilitas) dilakukan pada tahap pemodelan, di luar cakupan pipeline ini.
+Hasil terakhir: **22 pemeriksaan otomatis lulus, 0 gagal**. Mekanisme audit 150 baris (`manual_quality_audit.csv`) disediakan, tetapi review semantik sengaja dilewati sesuai keputusan tim, sehingga `review_status` tetap `belum_dinilai`; validator melaporkan `0/150` karena alasan tersebut. Evaluasi topik (coherence, diversity, interpretabilitas) dilakukan pada tahap pemodelan, di luar cakupan pipeline ini.
 
 ## Audit panjang teks dan code-mixing
 

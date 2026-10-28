@@ -157,6 +157,13 @@ def load_data(path: Path) -> pd.DataFrame:
         return pd.read_csv(path, dtype={"id": "string", "parent_id": "string"})
     if path.suffix.lower() == ".parquet":
         return pd.read_parquet(path)
+    if path.suffix.lower() == ".jsonl":
+        records = [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
+        result = pd.DataFrame(records)
+        for column in ["id", "parent_id"]:
+            if column in result:
+                result[column] = result[column].astype("string")
+        return result
     try:
         return pd.read_json(path, lines=True, dtype={"id": "string", "parent_id": "string"})
     except ValueError:
@@ -206,8 +213,14 @@ def prepare_data(df: pd.DataFrame, collection_log: Path = ROOT / "collection_log
     result["text_embed"] = result["text_minimal"].map(clean_embed)
     result["text_normalized"] = result["text"].map(clean_normalized)
     result["text_topic"] = result["text"].map(clean_topic)
-    result["source_keyword"] = result["query"].astype("string").str.split(" since:", n=1).str[0].str.strip().str.strip('"') if "query" in result else pd.NA
-    result["source_month"] = result["query"].astype("string").str.extract(r"\bsince:(\d{4}-\d{2})-\d{2}", expand=False) if "query" in result else pd.Series(pd.NA, index=result.index, dtype="string")
+    query = result["query"].astype("string") if "query" in result else pd.Series(pd.NA, index=result.index, dtype="string")
+    parsed_source = {
+        "source_keyword": query.str.split(" since:", n=1).str[0].str.strip().str.strip('"'),
+        "source_month": query.str.extract(r"\bsince:(\d{4}-\d{2})-\d{2}", expand=False),
+    }
+    for column, fallback in parsed_source.items():
+        result[column] = result[column].astype("string").fillna(fallback) if column in result else fallback
+    result["pull_batch"] = result["pull_batch"].fillna("month_wide") if "pull_batch" in result else "month_wide"
     result["window_capped"] = map_window_capped(result, collection_log)
     result["uses_embege"] = result["text"].str.contains(r"(?<![A-Za-z0-9_])embege(?![A-Za-z0-9_])", case=False, na=False)
     result["char_count"] = result["text_minimal"].str.len()
@@ -248,6 +261,8 @@ def build_outputs(prepared: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, d
         "window_capped_true_rows": int(posts["window_capped"].eq(True).sum()),
         "window_capped_false_rows": int(posts["window_capped"].eq(False).sum()),
         "window_capped_unknown_rows": int(posts["window_capped"].isna().sum()),
+        "pull_batch_month_wide_rows": int(posts["pull_batch"].eq("month_wide").sum()),
+        "pull_batch_slot_sample_rows": int(posts["pull_batch"].eq("slot_sample").sum()),
         "population_policy": "all valid posts",
     }
     return posts, topic, stages
