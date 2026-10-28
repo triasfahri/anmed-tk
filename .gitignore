@@ -1,0 +1,14 @@
+# secrets: never commit (real ones live in ~/.config/anmedsos/env)
+.env
+*.env
+secrets.*
+
+# collected data (hashed IDs, but still not for git) and local artifacts
+data/
+*.npz
+
+# python
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
