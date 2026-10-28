@@ -1,0 +1,155 @@
+keyword,month,fetched,capped
+mbg,2025-01,300,True
+mbg,2025-02,300,True
+mbg,2025-03,300,True
+mbg,2025-04,300,True
+mbg,2025-05,300,True
+mbg,2025-06,300,True
+mbg,2025-07,300,True
+mbg,2025-08,300,True
+mbg,2025-09,300,True
+mbg,2025-10,300,True
+mbg,2025-11,300,True
+mbg,2025-12,300,True
+mbg,2026-01,300,True
+mbg,2026-02,300,True
+mbg,2026-03,300,True
+mbg,2026-04,300,True
+mbg,2026-05,300,True
+mbg,2026-06,300,True
+mbg,2026-07,300,True
+mbg,2026-08,300,True
+mbg,2026-09,300,True
+mbg,2026-10,300,True
+makan bergizi gratis,2025-01,300,True
+makan bergizi gratis,2025-02,300,True
+makan bergizi gratis,2025-03,300,True
+makan bergizi gratis,2025-04,300,True
+makan bergizi gratis,2025-05,300,True
+makan bergizi gratis,2025-06,300,True
+makan bergizi gratis,2025-07,300,True
+makan bergizi gratis,2025-08,300,True
+makan bergizi gratis,2025-09,300,True
+makan bergizi gratis,2025-10,300,True
+makan bergizi gratis,2025-11,300,True
+makan bergizi gratis,2025-12,300,True
+makan bergizi gratis,2026-01,300,True
+makan bergizi gratis,2026-02,300,True
+makan bergizi gratis,2026-03,300,True
+makan bergizi gratis,2026-04,300,True
+makan bergizi gratis,2026-05,300,True
+makan bergizi gratis,2026-06,300,True
+makan bergizi gratis,2026-07,300,True
+makan bergizi gratis,2026-08,300,True
+makan bergizi gratis,2026-09,300,True
+makan bergizi gratis,2026-10,300,True
+sppg,2025-01,244,False
+sppg,2025-02,164,False
+sppg,2025-03,244,False
+sppg,2025-04,156,False
+sppg,2025-05,291,False
+sppg,2025-06,226,False
+sppg,2025-07,300,True
+sppg,2025-08,300,True
+sppg,2025-09,300,True
+sppg,2025-10,300,True
+sppg,2025-11,300,True
+sppg,2025-12,300,True
+sppg,2026-01,300,True
+sppg,2026-02,300,True
+sppg,2026-03,300,True
+sppg,2026-04,300,True
+sppg,2026-05,300,True
+sppg,2026-06,300,True
+sppg,2026-07,300,True
+sppg,2026-08,300,True
+sppg,2026-09,300,True
+sppg,2026-10,300,True
+bgn,2025-01,300,True
+bgn,2025-02,300,True
+bgn,2025-03,300,True
+bgn,2025-04,300,True
+bgn,2025-05,300,True
+bgn,2025-06,300,True
+bgn,2025-07,300,True
+bgn,2025-08,300,True
+bgn,2025-09,300,True
+bgn,2025-10,300,True
+bgn,2025-11,300,True
+bgn,2025-12,300,True
+bgn,2026-01,300,True
+bgn,2026-02,300,True
+bgn,2026-03,300,True
+bgn,2026-04,300,True
+bgn,2026-05,300,True
+bgn,2026-06,300,True
+bgn,2026-07,300,True
+bgn,2026-08,300,True
+bgn,2026-09,300,True
+bgn,2026-10,300,True
+badan gizi nasional,2025-01,300,True
+badan gizi nasional,2025-02,158,False
+badan gizi nasional,2025-03,147,False
+badan gizi nasional,2025-04,119,False
+badan gizi nasional,2025-05,205,False
+badan gizi nasional,2025-06,89,False
+badan gizi nasional,2025-07,56,False
+badan gizi nasional,2025-08,95,False
+badan gizi nasional,2025-09,300,True
+badan gizi nasional,2025-10,300,True
+badan gizi nasional,2025-11,163,False
+badan gizi nasional,2025-12,232,False
+badan gizi nasional,2026-01,200,False
+badan gizi nasional,2026-02,217,False
+badan gizi nasional,2026-03,272,False
+badan gizi nasional,2026-04,235,False
+badan gizi nasional,2026-05,165,False
+badan gizi nasional,2026-06,300,True
+badan gizi nasional,2026-07,300,True
+badan gizi nasional,2026-08,261,False
+badan gizi nasional,2026-09,300,True
+badan gizi nasional,2026-10,285,False
+embege,2025-01,5,False
+embege,2025-02,15,False
+embege,2025-03,11,False
+embege,2025-04,17,False
+embege,2025-05,61,False
+embege,2025-06,34,False
+embege,2025-07,25,False
+embege,2025-08,44,False
+embege,2025-09,99,False
+embege,2025-10,122,False
+embege,2025-11,88,False
+embege,2025-12,107,False
+embege,2026-01,211,False
+embege,2026-02,300,True
+embege,2026-03,300,True
+embege,2026-04,300,True
+embege,2026-05,300,True
+embege,2026-06,300,True
+embege,2026-07,300,True
+embege,2026-08,300,True
+embege,2026-09,300,True
+embege,2026-10,300,True
+satuan pelayanan pemenuhan gizi,2025-01,115,False
+satuan pelayanan pemenuhan gizi,2025-02,46,False
+satuan pelayanan pemenuhan gizi,2025-03,38,False
+satuan pelayanan pemenuhan gizi,2025-04,38,False
+satuan pelayanan pemenuhan gizi,2025-05,77,False
+satuan pelayanan pemenuhan gizi,2025-06,60,False
+satuan pelayanan pemenuhan gizi,2025-07,81,False
+satuan pelayanan pemenuhan gizi,2025-08,99,False
+satuan pelayanan pemenuhan gizi,2025-09,224,False
+satuan pelayanan pemenuhan gizi,2025-10,300,True
+satuan pelayanan pemenuhan gizi,2025-11,126,False
+satuan pelayanan pemenuhan gizi,2025-12,114,False
+satuan pelayanan pemenuhan gizi,2026-01,108,False
+satuan pelayanan pemenuhan gizi,2026-02,246,False
+satuan pelayanan pemenuhan gizi,2026-03,148,False
+satuan pelayanan pemenuhan gizi,2026-04,163,False
+satuan pelayanan pemenuhan gizi,2026-05,149,False
+satuan pelayanan pemenuhan gizi,2026-06,207,False
+satuan pelayanan pemenuhan gizi,2026-07,189,False
+satuan pelayanan pemenuhan gizi,2026-08,141,False
+satuan pelayanan pemenuhan gizi,2026-09,189,False
+satuan pelayanan pemenuhan gizi,2026-10,161,False

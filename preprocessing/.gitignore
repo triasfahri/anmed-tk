@@ -1,0 +1,6 @@
+output/
+__pycache__/
+.DS_Store
+.venv/
+.vendor/
+raw_data_MBG.jsonl
